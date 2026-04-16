@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Snake Game - Teachable Machine</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- TensorFlow.js & Teachable Machine Libraries -->
+    <!-- tfjs 1.3.1 (Recommended by TM) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
+</head>
+<body>
+    <div class="background-animation">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <!-- PANTALLA: AUTENTICACIÓN -->
+    <section id="auth-view" class="view active">
+        <div class="glass-card auth-card">
+            <h1 class="logo-title"><span class="highlight">AI</span> Snake</h1>
+            <p class="subtitle">Contrólalo con tu cuerpo y voz</p>
+
+            <div class="auth-toggle">
+                <button id="btn-show-login" class="toggle-btn active">Iniciar Sesión</button>
+                <button id="btn-show-register" class="toggle-btn">Registrarse</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form">
+                <input type="text" id="login-user" placeholder="Nombre de usuario" required autocomplete="off">
+                <input type="password" id="login-pass" placeholder="Contraseña" required>
+                <button type="submit" class="btn primary-btn">Entrar</button>
+                <p id="login-error" class="error-msg"></p>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="auth-form hidden">
+                <input type="text" id="reg-user" placeholder="Nombre de usuario" required autocomplete="off">
+                <input type="password" id="reg-pass" placeholder="Contraseña" required>
+                <button type="submit" class="btn primary-btn">Crear Cuenta</button>
+                <p id="reg-error" class="error-msg"></p>
+            </form>
+        </div>
+    </section>
+
+    <!-- PANTALLA: MENÚ PRINCIPAL -->
+    <section id="menu-view" class="view hidden">
+        <div class="glass-card menu-card">
+            <h2 class="welcome-text">Hola, <span id="current-username" class="highlight">Jugador</span></h2>
+            
+            <div class="menu-options">
+                <button id="btn-play" class="btn primary-btn big-btn">🎮 Jugar Ahora</button>
+                <button id="btn-ranking" class="btn secondary-btn">🏆 Ranking Global</button>
+                <button id="btn-history" class="btn secondary-btn">📜 Mi Historial</button>
+                <button id="btn-logout" class="btn danger-btn">Cerrar Sesión</button>
+            </div>
+        </div>
+
+        <!-- Modals for History & Ranking -->
+        <div id="modal-container" class="modal hidden">
+            <div class="glass-card modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Título</h3>
+                    <button id="btn-close-modal" class="close-btn">&times;</button>
+                </div>
+                <div id="modal-body" class="modal-body custom-scroll">
+                    <!-- Contenido dinámico (Ranking/Historial) -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- PANTALLA: JUEGO -->
+    <section id="game-view" class="view hidden">
+        <div class="game-layout">
+            <!-- Izquierda: IA y Controles -->
+            <div class="ai-panel glass-panel">
+                <h3>Sensores de IA</h3>
+                
+                <div class="ia-selector" style="margin-bottom: 10px; text-align: center;">
+                    <label for="control-mode" style="color: var(--primary);">Modo de Control:</label>
+                    <select id="control-mode" style="padding: 5px; background: rgba(0,0,0,0.5); color: white; border: 1px solid var(--primary); border-radius: 5px; margin-top: 5px; width: 100%;">
+                        <option value="gesture">Cámara (Gestos)</option>
+                        <option value="voice">Micrófono (Voz)</option>
+                    </select>
+                </div>
+                
+                <div class="sensor-box" id="box-cam">
+                    <h4>Cámara (Gestos)</h4>
+                    <div id="webcam-container">
+                        <div class="loader cam-loader">Activando cámara...</div>
+                    </div>
+                </div>
+
+                <div class="sensor-box" id="box-mic" style="display: none;">
+                    <h4>Micrófono (Voz)</h4>
+                    <div class="audio-visualizer" id="mic-status">
+                        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                        <span id="audio-label">Escuchando...</span>
+                    </div>
+                </div>
+
+                <div class="direction-indicator">
+                    <p>Último comando:</p>
+                    <h2 id="current-dir" class="highlight">-</h2>
+                </div>
+
+                <button id="btn-quit-game" class="btn danger-btn small-btn">Terminar Partida</button>
+            </div>
+
+            <!-- Derecha: Canvas del Juego -->
+            <div class="canvas-panel glass-panel">
+                <div class="game-header">
+                    <div class="score-box">Puntos: <span id="score">0</span></div>
+                    <div class="status-box" id="game-status-label">Iniciando IA... Espera por favor.</div>
+                </div>
+                
+                <!-- Tablero del juego -->
+                <canvas id="gameCanvas" width="500" height="500"></canvas>
+            </div>
+        </div>
+        
+        <!-- Pantalla de Game Over Overlay -->
+        <div id="game-over-screen" class="game-overlay hidden">
+            <h1>Game Over</h1>
+            <p>Puntuación Final: <span id="final-score" class="highlight">0</span></p>
+            <button id="btn-restart" class="btn primary-btn">Jugar de Nuevo</button>
+            <button id="btn-menu-from-game" class="btn secondary-btn">Volver al Menú</button>
+        </div>
+    </section>
+
+    <!-- Scripts Propios -->
+    <script src="auth.js"></script>
+    <script src="ai.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
